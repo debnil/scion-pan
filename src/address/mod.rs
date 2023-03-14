@@ -1,1 +1,4 @@
-//! Handles SCION addresses: parse, format, represent.
+//! SCION addresses: parse, format, represent.
+
+pub mod isdas;
+
