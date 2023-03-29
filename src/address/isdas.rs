@@ -1,6 +1,6 @@
 //! Isolation Domain (ISD) and Autonomous System (AS) identifiers.
 
-use anyhow::{Error as AnyError};
+use anyhow::Error as AnyError;
 use radix_fmt::radix;
 use std::fmt;
 
@@ -27,8 +27,7 @@ impl ISD {
     pub fn parse(string: &str) -> Result<Self, AnyError> {
         match string.parse::<u16>() {
             Ok(n) => Ok(Self(n)),
-            Err(_)=>
-            Err(AnyError::msg(format!("could not parse ISD: {}", string))),
+            Err(_) => Err(AnyError::msg(format!("could not parse ISD: {}", string))),
         }
     }
 }
@@ -54,14 +53,18 @@ impl AS {
         // be a BGP AS. Parse it as a 32-bit decimal number.
         if res.len() == 1 {
             return match string.parse::<u32>() {
-                Ok(n) => Ok(Self(n.into())), 
-                Err(_) => Err(AnyError::msg(format!("could not parse BGP AS: {}", res[0])))
+                Ok(n) => Ok(Self(n.into())),
+                Err(_) => Err(AnyError::msg(format!("could not parse BGP AS: {}", res[0]))),
             };
         }
 
         // AS_PARTS is currently 48/16 = 3, so should not panic.
         if res.len() != AS_PARTS.try_into().unwrap() {
-            return Err(AnyError::msg(format!("wrong number of colon-separated strings in AS: expected {}, got {}", AS_PARTS, res.len())));
+            return Err(AnyError::msg(format!(
+                "wrong number of colon-separated strings in AS: expected {}, got {}",
+                AS_PARTS,
+                res.len()
+            )));
         }
 
         let mut parsed: u64 = 0;
@@ -70,11 +73,14 @@ impl AS {
             let v: u64 = match u64::from_str_radix(r, AS_PART_BASE) {
                 Ok(n) => {
                     if n > AS_PART_MASK {
-                        return Err(AnyError::msg(format!("AS part value too long: max {}, got {}", AS_PART_MASK, n)));
+                        return Err(AnyError::msg(format!(
+                            "AS part value too long: max {}, got {}",
+                            AS_PART_MASK, n
+                        )));
                     }
 
                     n
-                },
+                }
                 Err(_) => {
                     return Err(AnyError::msg(format!("could not parse AS part: {}", r)));
                 }
@@ -85,7 +91,11 @@ impl AS {
         // Should be unreachable.
         // Left to protect against possible refactor issues.
         if parsed > AS_MAX.0 {
-            return Err(AnyError::msg(format!("AS out of range: max {}, value {}", AS_MAX.0, {parsed})));
+            return Err(AnyError::msg(format!(
+                "AS out of range: max {}, value {}",
+                AS_MAX.0,
+                { parsed }
+            )));
         }
 
         Ok(AS(parsed))
@@ -112,10 +122,14 @@ impl fmt::Display for AS {
             }
 
             let shift = AS_PART_BITS * (AS_PARTS - i - 1);
-            write!(f, "{}", radix((as_val >> shift) & AS_PART_MASK, AS_PART_BASE as u8));
+            write!(
+                f,
+                "{}",
+                radix((as_val >> shift) & AS_PART_MASK, AS_PART_BASE as u8)
+            );
 
-            i +=1;
-        };
+            i += 1;
+        }
 
         Ok(())
     }
@@ -129,7 +143,10 @@ pub struct IA(u64);
 impl IA {
     pub fn from(isd_val: ISD, as_val: AS) -> Result<Self, AnyError> {
         if as_val > AS_MAX {
-            return Err(AnyError::msg(format!("AS out of range: max {}, value {}", AS_MAX.0, as_val.0)));
+            return Err(AnyError::msg(format!(
+                "AS out of range: max {}, value {}",
+                AS_MAX.0, as_val.0
+            )));
         }
 
         let mut ia_val: u64 = (isd_val.0 as u64) << AS_BITS;
@@ -145,8 +162,8 @@ impl IA {
         }
 
         let isd = ISD::parse(parts[0])?;
-        let as_ = AS::parse(parts[1])?; 
-        
+        let as_ = AS::parse(parts[1])?;
+
         Self::from(isd, as_)
     }
 
@@ -176,9 +193,18 @@ mod tests {
         assert_eq!(ISD(1), ISD::parse("1").unwrap());
         assert_eq!(ISD_MAX, ISD::parse("65535").unwrap());
 
-        assert_eq!("could not parse ISD: ", format!("{}", ISD::parse("").unwrap_err().root_cause()));
-        assert_eq!("could not parse ISD: a", format!("{}", ISD::parse("a").unwrap_err().root_cause()));
-        assert_eq!("could not parse ISD: 65536", format!("{}", ISD::parse("65536").unwrap_err().root_cause()));
+        assert_eq!(
+            "could not parse ISD: ",
+            format!("{}", ISD::parse("").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse ISD: a",
+            format!("{}", ISD::parse("a").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse ISD: 65536",
+            format!("{}", ISD::parse("65536").unwrap_err().root_cause())
+        );
     }
 
     #[test]
@@ -187,10 +213,22 @@ mod tests {
         assert_eq!(AS(1), AS::parse("1").unwrap());
         assert_eq!(AS_BGP_MAX, AS::parse("4294967295").unwrap());
 
-        assert_eq!("could not parse BGP AS: ", format!("{}", AS::parse("").unwrap_err().root_cause()));
-        assert_eq!("could not parse BGP AS: 0x0", format!("{}", AS::parse("0x0").unwrap_err().root_cause()));
-        assert_eq!("could not parse BGP AS: ff", format!("{}", AS::parse("ff").unwrap_err().root_cause()));
-        assert_eq!("could not parse BGP AS: 4294967296", format!("{}", AS::parse("4294967296").unwrap_err().root_cause()));
+        assert_eq!(
+            "could not parse BGP AS: ",
+            format!("{}", AS::parse("").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse BGP AS: 0x0",
+            format!("{}", AS::parse("0x0").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse BGP AS: ff",
+            format!("{}", AS::parse("ff").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse BGP AS: 4294967296",
+            format!("{}", AS::parse("4294967296").unwrap_err().root_cause())
+        );
     }
 
     #[test]
@@ -201,17 +239,41 @@ mod tests {
         assert_eq!(AS_MAX, AS::parse("ffff:ffff:ffff").unwrap());
 
         // Incorrectly formatted (wrong number of colons).
-        assert_eq!("wrong number of colon-separated strings in AS: expected 3, got 2", format!("{}", AS::parse(":").unwrap_err().root_cause()));
-        assert_eq!("wrong number of colon-separated strings in AS: expected 3, got 4", format!("{}", AS::parse("0:0:0:").unwrap_err().root_cause()));
-        assert_eq!("wrong number of colon-separated strings in AS: expected 3, got 4", format!("{}", AS::parse(":0:0:0").unwrap_err().root_cause()));
-        assert_eq!("wrong number of colon-separated strings in AS: expected 3, got 2", format!("{}", AS::parse("0:0").unwrap_err().root_cause()));
-        
-        // Incorrectly formatted, too-long parts.
-        assert_eq!("AS part value too long: max 65535, got 65536", format!("{}", AS::parse("10000:0:0").unwrap_err().root_cause()));
-        assert_eq!("AS part value too long: max 65535, got 65536", format!("{}", AS::parse("0:10000:0").unwrap_err().root_cause()));
-        assert_eq!("AS part value too long: max 65535, got 65536", format!("{}", AS::parse("0:0:10000").unwrap_err().root_cause()));
+        assert_eq!(
+            "wrong number of colon-separated strings in AS: expected 3, got 2",
+            format!("{}", AS::parse(":").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "wrong number of colon-separated strings in AS: expected 3, got 4",
+            format!("{}", AS::parse("0:0:0:").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "wrong number of colon-separated strings in AS: expected 3, got 4",
+            format!("{}", AS::parse(":0:0:0").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "wrong number of colon-separated strings in AS: expected 3, got 2",
+            format!("{}", AS::parse("0:0").unwrap_err().root_cause())
+        );
 
-        assert_eq!("could not parse AS part: 0x0", format!("{}", AS::parse("0:0x0:0").unwrap_err().root_cause()));
+        // Incorrectly formatted, too-long parts.
+        assert_eq!(
+            "AS part value too long: max 65535, got 65536",
+            format!("{}", AS::parse("10000:0:0").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "AS part value too long: max 65535, got 65536",
+            format!("{}", AS::parse("0:10000:0").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "AS part value too long: max 65535, got 65536",
+            format!("{}", AS::parse("0:0:10000").unwrap_err().root_cause())
+        );
+
+        assert_eq!(
+            "could not parse AS part: 0x0",
+            format!("{}", AS::parse("0:0x0:0").unwrap_err().root_cause())
+        );
     }
 
     #[test]
@@ -219,34 +281,97 @@ mod tests {
         // Success cases also test from.
         assert_eq!(IA::parse("0-0").unwrap(), IA::from(ISD(0), AS(0)).unwrap());
         assert_eq!(IA::parse("1-1").unwrap(), IA::from(ISD(1), AS(1)).unwrap());
-        assert_eq!(IA::parse("65535-1").unwrap(), IA::from(ISD_MAX, AS(1)).unwrap());
-        assert_eq!(IA::parse("1-4294967295").unwrap(), IA::from(ISD(1), AS_BGP_MAX).unwrap());
-        assert_eq!(IA::parse("1-1:0:0").unwrap(), IA::from(ISD(1), AS(0x000100000000)).unwrap());
-        assert_eq!(IA::parse("1-1:fcd1:1").unwrap(), IA::from(ISD(1), AS(0x0001fcd10001)).unwrap());
-        assert_eq!(IA::parse("65535-ffff:ffff:ffff").unwrap(), IA::from(ISD_MAX, AS_MAX).unwrap());
+        assert_eq!(
+            IA::parse("65535-1").unwrap(),
+            IA::from(ISD_MAX, AS(1)).unwrap()
+        );
+        assert_eq!(
+            IA::parse("1-4294967295").unwrap(),
+            IA::from(ISD(1), AS_BGP_MAX).unwrap()
+        );
+        assert_eq!(
+            IA::parse("1-1:0:0").unwrap(),
+            IA::from(ISD(1), AS(0x000100000000)).unwrap()
+        );
+        assert_eq!(
+            IA::parse("1-1:fcd1:1").unwrap(),
+            IA::from(ISD(1), AS(0x0001fcd10001)).unwrap()
+        );
+        assert_eq!(
+            IA::parse("65535-ffff:ffff:ffff").unwrap(),
+            IA::from(ISD_MAX, AS_MAX).unwrap()
+        );
 
-        assert_eq!("invalid ISD-AS: ", format!("{}", IA::parse("").unwrap_err().root_cause()));
-        assert_eq!("invalid ISD-AS: a", format!("{}", IA::parse("a").unwrap_err().root_cause()));
-        assert_eq!("could not parse ISD: 1a", format!("{}", IA::parse("1a-2b").unwrap_err().root_cause()));
-        assert_eq!("could not parse ISD: ", format!("{}", IA::parse("-").unwrap_err().root_cause()));
-        assert_eq!("could not parse BGP AS: ", format!("{}", IA::parse("1-").unwrap_err().root_cause()));
-        assert_eq!("could not parse ISD: ", format!("{}", IA::parse("-1").unwrap_err().root_cause()));
-        assert_eq!("invalid ISD-AS: -1-", format!("{}", IA::parse("-1-").unwrap_err().root_cause()));
-        assert_eq!("invalid ISD-AS: 1--1", format!("{}", IA::parse("1--1").unwrap_err().root_cause()));
+        assert_eq!(
+            "invalid ISD-AS: ",
+            format!("{}", IA::parse("").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "invalid ISD-AS: a",
+            format!("{}", IA::parse("a").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse ISD: 1a",
+            format!("{}", IA::parse("1a-2b").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse ISD: ",
+            format!("{}", IA::parse("-").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse BGP AS: ",
+            format!("{}", IA::parse("1-").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse ISD: ",
+            format!("{}", IA::parse("-1").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "invalid ISD-AS: -1-",
+            format!("{}", IA::parse("-1-").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "invalid ISD-AS: 1--1",
+            format!("{}", IA::parse("1--1").unwrap_err().root_cause())
+        );
 
-        assert_eq!("could not parse ISD: 65536", format!("{}", IA::parse("65536-1").unwrap_err().root_cause()));
-        assert_eq!("could not parse BGP AS: 4294967296", format!("{}", IA::parse("1-4294967296").unwrap_err().root_cause()));
-        assert_eq!("AS part value too long: max 65535, got 65536", format!("{}", IA::parse("1-ffff:ffff:10000").unwrap_err().root_cause()));
+        assert_eq!(
+            "could not parse ISD: 65536",
+            format!("{}", IA::parse("65536-1").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "could not parse BGP AS: 4294967296",
+            format!("{}", IA::parse("1-4294967296").unwrap_err().root_cause())
+        );
+        assert_eq!(
+            "AS part value too long: max 65535, got 65536",
+            format!(
+                "{}",
+                IA::parse("1-ffff:ffff:10000").unwrap_err().root_cause()
+            )
+        );
     }
 
     #[test]
     fn test_ia_string() {
-        assert_eq!("0-0", format!("{}", IA::from(ISD(0),AS(0)).unwrap()));
-        assert_eq!("1-1", format!("{}", IA::from(ISD(1),AS(1)).unwrap()));
-        assert_eq!("65535-1", format!("{}", IA::from(ISD(65535),AS(1)).unwrap()));
-        assert_eq!("1-4294967295", format!("{}", IA::from(ISD(1), AS_BGP_MAX).unwrap()));
-        assert_eq!("1-1:0:0", format!("{}", IA::from(ISD(1), AS(AS_BGP_MAX.0 + 1)).unwrap()));
-        assert_eq!("65535-ffff:ffff:ffff", format!("{}", IA::from(ISD(65535), AS_MAX).unwrap()));
+        assert_eq!("0-0", format!("{}", IA::from(ISD(0), AS(0)).unwrap()));
+        assert_eq!("1-1", format!("{}", IA::from(ISD(1), AS(1)).unwrap()));
+        assert_eq!(
+            "65535-1",
+            format!("{}", IA::from(ISD(65535), AS(1)).unwrap())
+        );
+        assert_eq!(
+            "1-4294967295",
+            format!("{}", IA::from(ISD(1), AS_BGP_MAX).unwrap())
+        );
+        assert_eq!(
+            "1-1:0:0",
+            format!("{}", IA::from(ISD(1), AS(AS_BGP_MAX.0 + 1)).unwrap())
+        );
+        assert_eq!(
+            "65535-ffff:ffff:ffff",
+            format!("{}", IA::from(ISD(65535), AS_MAX).unwrap())
+        );
     }
 
     #[test]
@@ -258,6 +383,9 @@ mod tests {
         assert_eq!("1:0:0", format!("{}", AS(AS_BGP_MAX.0 + 1)));
         assert_eq!("1:fcd1:1", format!("{}", AS(0x0001fcd10001)));
         assert_eq!("ffff:ffff:ffff", format!("{}", AS_MAX));
-        assert_eq!("281474976710656 [Illegal AS: larger than 281474976710655]", format!("{}", AS(AS_MAX.0 + 1)));
+        assert_eq!(
+            "281474976710656 [Illegal AS: larger than 281474976710655]",
+            format!("{}", AS(AS_MAX.0 + 1))
+        );
     }
 }
