@@ -1,11 +1,13 @@
 //! Isolation Domain (ISD) and Autonomous System (AS) identifiers.
 
+#![allow(dead_code)]
+
 use anyhow::Error as AnyError;
 use radix_fmt::radix;
 use std::fmt;
 
 const ISD_BITS: i32 = 16;
-const ISD_MAX: ISD = ISD(((1 << ISD_BITS) as u32 - 1) as u16);
+const ISD_MAX: Isd = Isd(((1 << ISD_BITS) as u32 - 1) as u16);
 
 const AS_BITS: i32 = 48;
 const AS_MAX: AS = AS((1 << AS_BITS) - 1);
@@ -21,18 +23,18 @@ const AS_PARTS: i32 = AS_BITS / AS_PART_BITS;
 /// ISD is the ISolation Domain identifier.
 /// Formatting and allocations are defined at: https://github.com/scionproto/scion/wiki/ISD-and-AS-numbering#isd-numbers
 #[derive(Debug, PartialEq)]
-pub struct ISD(u16);
+pub struct Isd(u16);
 
-impl ISD {
+impl Isd {
     pub fn parse(string: &str) -> Result<Self, AnyError> {
         match string.parse::<u16>() {
             Ok(n) => Ok(Self(n)),
-            Err(_) => Err(AnyError::msg(format!("could not parse ISD: {}", string))),
+            Err(_) => Err(AnyError::msg(format!("could not parse ISD: {string}"))),
         }
     }
 }
 
-impl fmt::Display for ISD {
+impl fmt::Display for Isd {
     fn fmt(&self, f: &mut fmt::Formatter<'_>) -> fmt::Result {
         write!(f, "{}", self.0)
     }
@@ -47,7 +49,7 @@ impl AS {
     // Parses an AS from a decimal (32-bit BGP AS) or
     // ipv6-style hex (with SCION-only AS numbers) string.
     pub fn parse(string: &str) -> Result<Self, AnyError> {
-        let res: Vec<&str> = string.split(":").collect();
+        let res: Vec<&str> = string.split(':').collect();
 
         // If the input does not have a colon, it should
         // be a BGP AS. Parse it as a 32-bit decimal number.
@@ -74,15 +76,14 @@ impl AS {
                 Ok(n) => {
                     if n > AS_PART_MASK {
                         return Err(AnyError::msg(format!(
-                            "AS part value too long: max {}, got {}",
-                            AS_PART_MASK, n
+                            "AS part value too long: max {AS_PART_MASK}, got {n}",
                         )));
                     }
 
                     n
                 }
                 Err(_) => {
-                    return Err(AnyError::msg(format!("could not parse AS part: {}", r)));
+                    return Err(AnyError::msg(format!("could not parse AS part: {r}")));
                 }
             };
             parsed |= v;
@@ -111,14 +112,14 @@ impl fmt::Display for AS {
 
         // Format BGP ASes as decimal
         if as_val <= AS_BGP_MAX.0 {
-            return write!(f, "{}", as_val);
+            return write!(f, "{as_val}");
         }
 
         // Format all other ASes as colon-separated hex.
         let mut i = 0;
         while i < AS_PARTS {
             if i > 0 {
-                write!(f, ":");
+                write!(f, ":")?;
             }
 
             let shift = AS_PART_BITS * (AS_PARTS - i - 1);
@@ -126,7 +127,7 @@ impl fmt::Display for AS {
                 f,
                 "{}",
                 radix((as_val >> shift) & AS_PART_MASK, AS_PART_BASE as u8)
-            );
+            )?;
 
             i += 1;
         }
@@ -141,7 +142,7 @@ impl fmt::Display for AS {
 pub struct IA(u64);
 
 impl IA {
-    pub fn from(isd_val: ISD, as_val: AS) -> Result<Self, AnyError> {
+    pub fn from(isd_val: Isd, as_val: AS) -> Result<Self, AnyError> {
         if as_val > AS_MAX {
             return Err(AnyError::msg(format!(
                 "AS out of range: max {}, value {}",
@@ -156,20 +157,20 @@ impl IA {
     }
 
     pub fn parse(ia: &str) -> Result<Self, AnyError> {
-        let parts: Vec<&str> = ia.split("-").collect();
+        let parts: Vec<&str> = ia.split('-').collect();
         if parts.len() != 2 {
-            return Err(AnyError::msg(format!("invalid ISD-AS: {}", ia)));
+            return Err(AnyError::msg(format!("invalid ISD-AS: {ia}")));
         }
 
-        let isd = ISD::parse(parts[0])?;
+        let isd = Isd::parse(parts[0])?;
         let as_ = AS::parse(parts[1])?;
 
         Self::from(isd, as_)
     }
 
-    pub fn to_isd(&self) -> ISD {
+    pub fn to_isd(&self) -> Isd {
         // The cast will truncate the upper bits
-        ISD((self.0 >> AS_BITS) as u16)
+        Isd((self.0 >> AS_BITS) as u16)
     }
 
     pub fn to_as(&self) -> AS {
@@ -189,21 +190,21 @@ mod tests {
 
     #[test]
     fn test_isd_parse() {
-        assert_eq!(ISD(0), ISD::parse("0").unwrap());
-        assert_eq!(ISD(1), ISD::parse("1").unwrap());
-        assert_eq!(ISD_MAX, ISD::parse("65535").unwrap());
+        assert_eq!(Isd(0), Isd::parse("0").unwrap());
+        assert_eq!(Isd(1), Isd::parse("1").unwrap());
+        assert_eq!(ISD_MAX, Isd::parse("65535").unwrap());
 
         assert_eq!(
             "could not parse ISD: ",
-            format!("{}", ISD::parse("").unwrap_err().root_cause())
+            format!("{}", Isd::parse("").unwrap_err().root_cause())
         );
         assert_eq!(
             "could not parse ISD: a",
-            format!("{}", ISD::parse("a").unwrap_err().root_cause())
+            format!("{}", Isd::parse("a").unwrap_err().root_cause())
         );
         assert_eq!(
             "could not parse ISD: 65536",
-            format!("{}", ISD::parse("65536").unwrap_err().root_cause())
+            format!("{}", Isd::parse("65536").unwrap_err().root_cause())
         );
     }
 
@@ -279,23 +280,23 @@ mod tests {
     #[test]
     fn test_ia_parse_from() {
         // Success cases also test from.
-        assert_eq!(IA::parse("0-0").unwrap(), IA::from(ISD(0), AS(0)).unwrap());
-        assert_eq!(IA::parse("1-1").unwrap(), IA::from(ISD(1), AS(1)).unwrap());
+        assert_eq!(IA::parse("0-0").unwrap(), IA::from(Isd(0), AS(0)).unwrap());
+        assert_eq!(IA::parse("1-1").unwrap(), IA::from(Isd(1), AS(1)).unwrap());
         assert_eq!(
             IA::parse("65535-1").unwrap(),
             IA::from(ISD_MAX, AS(1)).unwrap()
         );
         assert_eq!(
             IA::parse("1-4294967295").unwrap(),
-            IA::from(ISD(1), AS_BGP_MAX).unwrap()
+            IA::from(Isd(1), AS_BGP_MAX).unwrap()
         );
         assert_eq!(
             IA::parse("1-1:0:0").unwrap(),
-            IA::from(ISD(1), AS(0x000100000000)).unwrap()
+            IA::from(Isd(1), AS(0x000100000000)).unwrap()
         );
         assert_eq!(
             IA::parse("1-1:fcd1:1").unwrap(),
-            IA::from(ISD(1), AS(0x0001fcd10001)).unwrap()
+            IA::from(Isd(1), AS(0x0001fcd10001)).unwrap()
         );
         assert_eq!(
             IA::parse("65535-ffff:ffff:ffff").unwrap(),
@@ -354,23 +355,23 @@ mod tests {
 
     #[test]
     fn test_ia_string() {
-        assert_eq!("0-0", format!("{}", IA::from(ISD(0), AS(0)).unwrap()));
-        assert_eq!("1-1", format!("{}", IA::from(ISD(1), AS(1)).unwrap()));
+        assert_eq!("0-0", format!("{}", IA::from(Isd(0), AS(0)).unwrap()));
+        assert_eq!("1-1", format!("{}", IA::from(Isd(1), AS(1)).unwrap()));
         assert_eq!(
             "65535-1",
-            format!("{}", IA::from(ISD(65535), AS(1)).unwrap())
+            format!("{}", IA::from(Isd(65535), AS(1)).unwrap())
         );
         assert_eq!(
             "1-4294967295",
-            format!("{}", IA::from(ISD(1), AS_BGP_MAX).unwrap())
+            format!("{}", IA::from(Isd(1), AS_BGP_MAX).unwrap())
         );
         assert_eq!(
             "1-1:0:0",
-            format!("{}", IA::from(ISD(1), AS(AS_BGP_MAX.0 + 1)).unwrap())
+            format!("{}", IA::from(Isd(1), AS(AS_BGP_MAX.0 + 1)).unwrap())
         );
         assert_eq!(
             "65535-ffff:ffff:ffff",
-            format!("{}", IA::from(ISD(65535), AS_MAX).unwrap())
+            format!("{}", IA::from(Isd(65535), AS_MAX).unwrap())
         );
     }
 
