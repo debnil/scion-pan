@@ -23,13 +23,6 @@ impl UDPAddr {
         "scion+udp".to_string()
     }
 
-    /// Converts an address string to a SCION address.
-    pub fn parse(string: &str) -> Result<Self, AnyError> {
-        Self::parse_udp(string)
-
-        // TODO: Handle legacy address formats.
-    }
-
     /// Parses an address string.
     ///
     /// Supported formats are based on RFC 3986:
@@ -38,7 +31,7 @@ impl UDPAddr {
     /// Examples:
     /// - [isd-as,ipv4]:port (e.g., [1-ff00:0:110,192.0.2.1]:80)
     /// - [isd-as,ipv6%zone]:port (e.g., [1-ff00:0:110,2001:DB8::1%zone]:80)
-    fn parse_udp(string: &str) -> Result<Self, AnyError> {
+    pub fn parse(string: &str) -> Result<Self, AnyError> {
         // Split string into host and port.
         let split: Vec<&str> = string.split("]:").collect();
 
@@ -111,8 +104,6 @@ mod tests {
         assert!(UDPAddr::parse("[1-ff00:0:110,1.2.3.4]").is_err());
         assert!(UDPAddr::parse("[1-ff00:0:110,::1%some-zone]").is_err());
         assert!(UDPAddr::parse("").is_err());
-
-        // TODO: Add tests that handle SCION legacy addresses.
 
         assert_eq!(
             UDPAddr {
